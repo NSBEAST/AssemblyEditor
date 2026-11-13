@@ -57,6 +57,13 @@
         input.value = "";
     }
 
+    function applyIsa(data: unknown) {
+        setup = setUpIsa(data);
+        output = [];
+        error = "";
+        editing = false;
+    }
+
     function handleKey(event: KeyboardEvent) {
         if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
             event.preventDefault();
@@ -94,7 +101,7 @@
             {editing ? "Close editor" : "Edit ISA"}
         </button>
         {#if editing}
-            <IsaEditor isa={setup.isa} />
+            <IsaEditor isa={setup.isa} onapply={applyIsa} />
         {/if}
         {#if isaError}
             <p class="error">{isaError}</p>
@@ -280,13 +287,5 @@
     }
     .input-area {
         font-size: medium;
-    }
-    .error {
-        color: #ffffff;
-        background: rgb(255, 80, 80, 0.15);
-        border-left: 4px solid #b00020;
-        padding: 0.5rem 0.75rem;
-        border-radius: 4px;
-        margin: 1rem 0rem;
     }
 </style>

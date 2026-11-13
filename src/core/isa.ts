@@ -38,6 +38,8 @@ export function loadIsa(data: unknown): Isa {
     // check top level keys
     if (typeof obj.name !== "string")
         throw new Error("'name' must be a string");
+    if (obj.name.trim() === "")
+        throw new Error("'name' must not be empty");
     if (typeof obj.description !== "string")
         throw new Error("'description' must be a string");
     if (!Array.isArray(obj.registers))

@@ -1,10 +1,22 @@
 <script lang="ts">
-    import type { Isa } from "./core/isa";
+    import { loadIsa, type Isa } from "./core/isa";
 
-    let { isa }: { isa: Isa } = $props();
+    let { isa, onapply}: { isa: Isa, onapply: (data: unknown) => void } = $props();
+    let error: string = $state("");
 
     // svelte-ignore state_referenced_locally
     let draft = $state(structuredClone(isa));
+
+    function apply() {
+        error = "";
+        try {
+            loadIsa(draft);
+            onapply($state.snapshot(draft));
+        } catch (e) {
+            error = e instanceof Error ? e.message : String(e);
+        }
+    }
+
 </script>
 
 <article>
@@ -27,6 +39,12 @@
             Jump to one before jump address
         </label>
     </div>
+    <button onclick={apply}>Apply</button>
+    {#if error}
+        <p class="error">
+            {error}
+        </p>
+    {/if}
 </article>
 
 <style>
