@@ -1,0 +1,1 @@
+export const operandTypes = ["register", "immediate", "label"];

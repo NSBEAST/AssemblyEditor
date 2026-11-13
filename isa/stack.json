@@ -1,0 +1,42 @@
+{
+  "name": "STACK",
+  "description": "Stack machine, no registers, program starts at address 1 and jumps land one address early",
+  "registers": [],
+  "firstProgramIndex": 1,
+  "jumpToOneBeforeAddress": true,
+
+  "formats": {
+    "N": {
+      "operands": []
+    },
+    "V": {
+      "operands": [
+        { "field": "value", "type": "immediate" }
+      ]
+    },
+    "L": {
+      "operands": [
+        { "field": "addr", "type": "label" }
+      ]
+    }
+  },
+
+  "instructions": [
+    { "mnemonic": "PUSH", "opcode": 1,  "format": "V" },
+    { "mnemonic": "POP",  "opcode": 2,  "format": "N" },
+    { "mnemonic": "DUP",  "opcode": 3,  "format": "N" },
+    { "mnemonic": "SWAP", "opcode": 4,  "format": "N" },
+    { "mnemonic": "ADD",  "opcode": 5,  "format": "N" },
+    { "mnemonic": "SUB",  "opcode": 6,  "format": "N" },
+    { "mnemonic": "MUL",  "opcode": 7,  "format": "N" },
+    { "mnemonic": "JMP",  "opcode": 8,  "format": "L" },
+    { "mnemonic": "JZ",   "opcode": 9,  "format": "L" },
+    { "mnemonic": "HALT", "opcode": 15, "format": "N" }
+  ],
+
+  "pseudoInstructions": [
+    { "mnemonic": "INC", "params": [], "expandsTo": ["PUSH 1", "ADD"] },
+    { "mnemonic": "DEC", "params": [], "expandsTo": ["PUSH 1", "SUB"] },
+    { "mnemonic": "NEG", "params": [], "expandsTo": ["PUSH -1", "MUL"] }
+  ]
+}

@@ -1,0 +1,71 @@
+{
+  "name": "TM16",
+  "description": "Test Language",
+  "registers": ["R0", "R1", "R2", "R3", "R4", "R5", "R6", "R7"],
+  "firstProgramIndex": 3,
+  "jumpToOneBeforeAddress": true,
+
+  "formats": {
+    "N": {
+      "operands": []
+    },
+    "R": {
+      "operands": [
+        { "field": "rd", "type": "register" },
+        { "field": "rs1", "type": "register" },
+        { "field": "rs2", "type": "register" }
+      ]
+    },
+    "I": {
+      "operands": [
+        { "field": "rd", "type": "register" },
+        { "field": "rs1", "type": "register" },
+        { "field": "imm", "type": "immediate" }
+      ]
+    },
+    "LI": {
+      "operands": [
+        { "field": "rd", "type": "register" },
+        { "field": "imm", "type": "immediate" }
+      ]
+    },
+    "B": {
+      "operands": [
+        { "field": "rs1", "type": "register" },
+        { "field": "rs2", "type": "register" },
+        { "field": "offset", "type": "label" }
+      ]
+    },
+    "J": {
+      "operands": [
+        { "field": "addr", "type": "label" }
+      ]
+    }
+  },
+
+  "instructions": [
+    { "mnemonic": "NOP",  "opcode": 0,  "format": "N" },
+    { "mnemonic": "ADD",  "opcode": 1,  "format": "R" },
+    { "mnemonic": "SUB",  "opcode": 2,  "format": "R" },
+    { "mnemonic": "AND",  "opcode": 3,  "format": "R" },
+    { "mnemonic": "OR",   "opcode": 4,  "format": "R" },
+    { "mnemonic": "XOR",  "opcode": 5,  "format": "R" },
+    { "mnemonic": "ADDI", "opcode": 6,  "format": "I" },
+    { "mnemonic": "LDI",  "opcode": 7,  "format": "LI" },
+    { "mnemonic": "LD",   "opcode": 8,  "format": "I" },
+    { "mnemonic": "ST",   "opcode": 9,  "format": "I" },
+    { "mnemonic": "BEQ",  "opcode": 10, "format": "B" },
+    { "mnemonic": "BNE",  "opcode": 11, "format": "B" },
+    { "mnemonic": "JMP",  "opcode": 12, "format": "J" },
+    { "mnemonic": "SHL",  "opcode": 13, "format": "I", "immRange": [0, 15] },
+    { "mnemonic": "SHR",  "opcode": 14, "format": "I", "immRange": [0, 15] },
+    { "mnemonic": "HALT", "opcode": 15, "format": "N" }
+  ],
+
+  "pseudoInstructions": [
+    { "mnemonic": "MOV", "params": ["rd", "rs"], "expandsTo": ["ADD $rd, $rs, R0"] },
+    { "mnemonic": "CLR", "params": ["rd"],       "expandsTo": ["ADD $rd, R0, R0"] },
+    { "mnemonic": "INC", "params": ["rd"],       "expandsTo": ["ADDI $rd, $rd, 1"] },
+    { "mnemonic": "DEC", "params": ["rd"],       "expandsTo": ["ADDI $rd, $rd, -1"] }
+  ]
+}

@@ -1,0 +1,42 @@
+{
+  "name": "ACC8",
+  "description": "Accumulator machine: one implicit register, one operand per instruction",
+  "registers": [],
+  "firstProgramIndex": 0,
+  "jumpToOneBeforeAddress": false,
+
+  "formats": {
+    "N": {
+      "operands": []
+    },
+    "V": {
+      "operands": [
+        { "field": "value", "type": "immediate" }
+      ]
+    },
+    "L": {
+      "operands": [
+        { "field": "addr", "type": "label" }
+      ]
+    }
+  },
+
+  "instructions": [
+    { "mnemonic": "NOP",  "opcode": 0,  "format": "N" },
+    { "mnemonic": "LDA",  "opcode": 1,  "format": "V" },
+    { "mnemonic": "ADD",  "opcode": 2,  "format": "V" },
+    { "mnemonic": "SUB",  "opcode": 3,  "format": "V" },
+    { "mnemonic": "LDM",  "opcode": 4,  "format": "V", "immRange": [0, 63] },
+    { "mnemonic": "STA",  "opcode": 5,  "format": "V", "immRange": [0, 63] },
+    { "mnemonic": "JMP",  "opcode": 8,  "format": "L" },
+    { "mnemonic": "JZ",   "opcode": 9,  "format": "L" },
+    { "mnemonic": "JNZ",  "opcode": 10, "format": "L" },
+    { "mnemonic": "HALT", "opcode": 15, "format": "N" }
+  ],
+
+  "pseudoInstructions": [
+    { "mnemonic": "CLR", "params": [], "expandsTo": ["LDA 0"] },
+    { "mnemonic": "INC", "params": [], "expandsTo": ["ADD 1"] },
+    { "mnemonic": "DEC", "params": [], "expandsTo": ["SUB 1"] }
+  ]
+}

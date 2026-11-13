@@ -1,0 +1,18 @@
+/* Pico CSS (imported in main.ts) styles the basics: fonts, colors, buttons, spacing.
+   These are the few extras on top of it. */
+
+/* code and output look better in a monospace font */
+textarea,
+pre {
+  font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+}
+
+/* a taller editor box */
+textarea {
+  min-height: 20rem;
+}
+
+/* use class="error" on a message to show it in red */
+.error {
+  color: var(--pico-del-color);
+}

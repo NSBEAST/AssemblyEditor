@@ -1,0 +1,79 @@
+{
+  "name": "RISC16",
+  "description": "16 registers, stack pseudo-instructions on R15, program starts at address 1",
+  "registers": ["R0", "R1", "R2", "R3", "R4", "R5", "R6", "R7", "R8", "R9", "R10", "R11", "R12", "R13", "R14", "R15"],
+  "firstProgramIndex": 1,
+  "jumpToOneBeforeAddress": false,
+
+  "formats": {
+    "N": {
+      "operands": []
+    },
+    "R": {
+      "operands": [
+        { "field": "rd", "type": "register" },
+        { "field": "rs1", "type": "register" },
+        { "field": "rs2", "type": "register" }
+      ]
+    },
+    "I": {
+      "operands": [
+        { "field": "rd", "type": "register" },
+        { "field": "rs1", "type": "register" },
+        { "field": "imm", "type": "immediate" }
+      ]
+    },
+    "LI": {
+      "operands": [
+        { "field": "rd", "type": "register" },
+        { "field": "imm", "type": "immediate" }
+      ]
+    },
+    "B": {
+      "operands": [
+        { "field": "rs1", "type": "register" },
+        { "field": "rs2", "type": "register" },
+        { "field": "target", "type": "label" }
+      ]
+    },
+    "J": {
+      "operands": [
+        { "field": "target", "type": "label" }
+      ]
+    }
+  },
+
+  "instructions": [
+    { "mnemonic": "NOP",  "opcode": 0,  "format": "N" },
+    { "mnemonic": "ADD",  "opcode": 1,  "format": "R" },
+    { "mnemonic": "SUB",  "opcode": 2,  "format": "R" },
+    { "mnemonic": "AND",  "opcode": 3,  "format": "R" },
+    { "mnemonic": "OR",   "opcode": 4,  "format": "R" },
+    { "mnemonic": "XOR",  "opcode": 5,  "format": "R" },
+    { "mnemonic": "MUL",  "opcode": 6,  "format": "R" },
+    { "mnemonic": "ADDI", "opcode": 7,  "format": "I" },
+    { "mnemonic": "ANDI", "opcode": 8,  "format": "I" },
+    { "mnemonic": "LDI",  "opcode": 9,  "format": "LI" },
+    { "mnemonic": "LD",   "opcode": 10, "format": "I" },
+    { "mnemonic": "ST",   "opcode": 11, "format": "I" },
+    { "mnemonic": "BEQ",  "opcode": 12, "format": "B" },
+    { "mnemonic": "BNE",  "opcode": 13, "format": "B" },
+    { "mnemonic": "BLT",  "opcode": 14, "format": "B" },
+    { "mnemonic": "JMP",  "opcode": 15, "format": "J" },
+    { "mnemonic": "SHL",  "opcode": 16, "format": "I", "immRange": [0, 15] },
+    { "mnemonic": "SHR",  "opcode": 17, "format": "I", "immRange": [0, 15] },
+    { "mnemonic": "HALT", "opcode": 31, "format": "N" }
+  ],
+
+  "pseudoInstructions": [
+    { "mnemonic": "MOV",  "params": ["rd", "rs"],     "expandsTo": ["ADD $rd, $rs, R0"] },
+    { "mnemonic": "CLR",  "params": ["rd"],           "expandsTo": ["ADD $rd, R0, R0"] },
+    { "mnemonic": "NEG",  "params": ["rd"],           "expandsTo": ["SUB $rd, R0, $rd"] },
+    { "mnemonic": "INC",  "params": ["rd"],           "expandsTo": ["ADDI $rd, $rd, 1"] },
+    { "mnemonic": "DEC",  "params": ["rd"],           "expandsTo": ["ADDI $rd, $rd, -1"] },
+    { "mnemonic": "BEQZ", "params": ["rs", "target"], "expandsTo": ["BEQ $rs, R0, $target"] },
+    { "mnemonic": "BNEZ", "params": ["rs", "target"], "expandsTo": ["BNE $rs, R0, $target"] },
+    { "mnemonic": "PUSH", "params": ["rs"],           "expandsTo": ["ADDI R15, R15, -1", "ST $rs, R15, 0"] },
+    { "mnemonic": "POP",  "params": ["rd"],           "expandsTo": ["LD $rd, R15, 0", "ADDI R15, R15, 1"] }
+  ]
+}

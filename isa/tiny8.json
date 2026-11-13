@@ -1,0 +1,56 @@
+{
+  "name": "TINY8",
+  "description": "Tiny 4-register machine, addresses start at 0",
+  "registers": ["A", "B", "C", "D"],
+  "firstProgramIndex": 0,
+  "jumpToOneBeforeAddress": false,
+
+  "formats": {
+    "N": {
+      "operands": []
+    },
+    "RR": {
+      "operands": [
+        { "field": "rd", "type": "register" },
+        { "field": "rs", "type": "register" }
+      ]
+    },
+    "RI": {
+      "operands": [
+        { "field": "rd", "type": "register" },
+        { "field": "imm", "type": "immediate" }
+      ]
+    },
+    "J": {
+      "operands": [
+        { "field": "addr", "type": "label" }
+      ]
+    },
+    "BZ": {
+      "operands": [
+        { "field": "rs", "type": "register" },
+        { "field": "addr", "type": "label" }
+      ]
+    }
+  },
+
+  "instructions": [
+    { "mnemonic": "NOP",  "opcode": 0,  "format": "N" },
+    { "mnemonic": "LDI",  "opcode": 1,  "format": "RI", "immRange": [0, 255] },
+    { "mnemonic": "MOV",  "opcode": 2,  "format": "RR" },
+    { "mnemonic": "ADD",  "opcode": 3,  "format": "RR" },
+    { "mnemonic": "SUB",  "opcode": 4,  "format": "RR" },
+    { "mnemonic": "AND",  "opcode": 5,  "format": "RR" },
+    { "mnemonic": "OR",   "opcode": 6,  "format": "RR" },
+    { "mnemonic": "JMP",  "opcode": 7,  "format": "J" },
+    { "mnemonic": "JZ",   "opcode": 8,  "format": "BZ" },
+    { "mnemonic": "JNZ",  "opcode": 9,  "format": "BZ" },
+    { "mnemonic": "HALT", "opcode": 15, "format": "N" }
+  ],
+
+  "pseudoInstructions": [
+    { "mnemonic": "CLR",  "params": ["rd"],      "expandsTo": ["SUB $rd, $rd"] },
+    { "mnemonic": "CLR2", "params": ["a", "b"],  "expandsTo": ["SUB $a, $a", "SUB $b, $b"] },
+    { "mnemonic": "DBL",  "params": ["rd"],      "expandsTo": ["ADD $rd, $rd"] }
+  ]
+}
