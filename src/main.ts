@@ -1,6 +1,7 @@
 import { mount } from 'svelte'
-import '@picocss/pico/css/pico.classless.min.css'
 import './app.css'
+import "@fontsource/jetbrains-mono";
+import "@fontsource-variable/inter";
 import App from './App.svelte'
 
 const app = mount(App, {

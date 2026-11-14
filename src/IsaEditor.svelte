@@ -21,7 +21,7 @@
 
 <article>
     <header><h2>ISA editor</h2></header>
-    <div class="fields">
+    <div>
         <label>
             Name
             <input type="text" bind:value={draft.name} />
@@ -46,22 +46,3 @@
         </p>
     {/if}
 </article>
-
-<style>
-    article {
-        margin-top: 1rem;
-    }
-    h2 {
-        margin: 0;
-        font-size: 1.25rem;
-    }
-    .fields {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        column-gap: 1rem;
-        align-items: end;
-    }
-    .checkbox {
-        grid-column: 1 / -1;
-    }
-</style>

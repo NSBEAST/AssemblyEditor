@@ -90,202 +90,355 @@
     }
 </script>
 
-<main>
-    <div class="main">
-        <h1>Trailmakers Assembler</h1>
-        <label>
-            ISA file (active: {setup.isa.name})
-            <input type="file" accept=".json" onchange={importIsa} />
-        </label>
-        <button onclick={() => (editing = !editing)}>
-            {editing ? "Close editor" : "Edit ISA"}
-        </button>
+<div class="layout">
+    <header class="toolbar">
+        <h1>Assembly Editor</h1>
+        <input
+            type="file"
+            accept=".json"
+            aria-label="Import ISA file"
+            onchange={importIsa}
+        />
+        <button onclick={assembleButton}>Assemble</button>
+
+        <p class="isa-label">{setup.isa.name}</p>
+    </header>
+
+    <aside class="sidebar">
+        <header><h2>ISA Reference</h2></header>
+        <div class="isa-reference">
+            {#if setup.isa.description.trim()}
+                <details>
+                    <summary>Description</summary>
+                    <p class="instruction-description value">
+                        {setup.isa.description}
+                    </p>
+                </details>
+            {/if}
+
+            {#if setup.isa.instructions.length !== 0}
+                <details>
+                    <summary>Instructions</summary>
+                    {#each setup.isa.instructions as ins}
+                        <details class="nested">
+                            <summary>{ins.mnemonic}</summary>
+                            {#if setup.isa.formats[ins.format].operands.length !== 0}
+                                <p class="instruction-description">
+                                    Operands: {#each setup.isa.formats[ins.format].operands as op, i}
+                                        {#if i > 0},{/if}
+                                        <span class="value" title={op.type}>
+                                            {op.field}
+                                        </span>
+                                    {/each}
+                                </p>
+                                {#if ins.immRange}
+                                    <p class="instruction-description">
+                                        Immediate range: <span class="value">
+                                            [{ins.immRange[0]} to {ins
+                                                .immRange[1]}]
+                                        </span>
+                                    </p>
+                                {/if}
+                            {:else}
+                                <p class="instruction-description value">
+                                    No operands
+                                </p>
+                            {/if}
+                        </details>
+                    {/each}
+                </details>
+            {/if}
+
+            {#if setup.isa.pseudoInstructions.length !== 0}
+                <details>
+                    <summary>Pseudo-instructions</summary>
+                    {#each setup.isa.pseudoInstructions as ins}
+                        <details class="nested">
+                            <summary>{ins.mnemonic}</summary>
+                            {#if ins.params.length !== 0}
+                                <p class="instruction-description">
+                                    Operands: <span class="value">
+                                        {#each ins.params as op, i}
+                                            {#if i > 0},{/if}
+                                            {op}
+                                        {/each}
+                                    </span>
+                                </p>
+                                <p class="instruction-description">
+                                    Expands to:
+                                </p>
+                                {#each ins.expandsTo as exp}
+                                    <p
+                                        class="instruction-description expansion"
+                                    >
+                                        <code class="value">{exp}</code>
+                                    </p>
+                                {/each}
+                            {:else}
+                                <p class="instruction-description">
+                                    No parameters
+                                </p>
+                            {/if}
+                        </details>
+                    {/each}
+                </details>
+            {/if}
+
+            {#if setup.isa.registers.length}
+                <details>
+                    <summary>Registers</summary>
+                    <div class="registers">
+                        {#each setup.isa.registers as reg}
+                            <span class="register">{reg}</span>
+                        {/each}
+                    </div>
+                </details>
+            {/if}
+
+            <details>
+                <summary>Other</summary>
+                <p class="instruction-description">
+                    First program index: <span class="value">
+                        {setup.isa.firstProgramIndex}
+                    </span>
+                </p>
+                <p class="instruction-description">
+                    Jump to one before address: <span class="value">
+                        {setup.isa.jumpToOneBeforeAddress}
+                    </span>
+                </p>
+            </details>
+        </div>
+    </aside>
+
+    <main class="editor">
+        <textarea
+            class="input-area"
+            aria-label="Assembly source"
+            spellcheck="false"
+            bind:value={source}
+            onkeydown={handleKey}></textarea>
+    </main>
+
+    <section class="panel">
+        <div class="tabs" role="tablist">
+            <button
+                role="tab"
+                aria-selected={!editing}
+                onclick={() => (editing = false)}
+            >
+                Output
+            </button>
+            <button
+                role="tab"
+                aria-selected={editing}
+                onclick={() => (editing = true)}
+            >
+                Edit ISA
+            </button>
+        </div>
         {#if editing}
             <IsaEditor isa={setup.isa} onapply={applyIsa} />
+        {:else}
+            <table class="output-table">
+                <thead>
+                    <tr>
+                        <th>Addr</th>
+                        <th>Opcode</th>
+                        <th>Operands</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {#each output as row, i}
+                        <tr>
+                            <td>{i + setup.isa.firstProgramIndex}</td>
+                            <td>{row[0]}</td>
+                            <td>{row.slice(1).join(" ")}</td>
+                        </tr>
+                    {/each}
+                </tbody>
+            </table>
+
+            {#if output.length !== 0}
+                <button onclick={copyOutputToClipboard} class="copy-button">
+                    {copied ? "Copied!" : "Copy"}
+                </button>
+            {/if}
         {/if}
+    </section>
+
+    <footer class="status-bar">
         {#if isaError}
             <p class="error">{isaError}</p>
         {/if}
 
-
-
-        <details>
-            <summary>ISA Reference</summary>
-            <div class="ISA-reference">
-                {#if setup.isa.description.trim()}
-                <details class="indented">
-                    <summary>Description</summary>
-                    <p class="indented">{setup.isa.description}</p>
-                </details>
-                {/if}
-
-                {#if setup.isa.instructions.length !== 0}
-                <details class="indented">
-                    <summary>Instructions</summary>
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>Mnemonic</th>
-                                <th>Opcode</th>
-                                <th>Operands</th>
-                                <th>immRange</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {#each setup.isa.instructions as ins}
-                                <tr>
-                                    <td>{ins.mnemonic}</td>
-                                    <td>{ins.opcode}</td>
-                                    <td>
-                                        {setup.isa.formats[ins.format].operands
-                                            .map(
-                                                (o) =>
-                                                    o.field +
-                                                    " (" +
-                                                    o.type +
-                                                    ")",
-                                            )
-                                            .join(", ")}
-                                    </td>
-                                    <td>
-                                        {#if ins.immRange}{ins.immRange[0] +
-                                                " to " +
-                                                ins.immRange[1]}{/if}
-                                    </td>
-                                </tr>
-                            {/each}
-                        </tbody>
-                    </table>
-                </details>
-                {/if}
-
-                {#if setup.isa.pseudoInstructions.length !== 0}
-                    <details class="indented">
-                        <summary>Pseudo-instructions</summary>
-                        <table>
-                            <thead>
-                                <tr>
-                                    <th>Mnemonic</th>
-                                    <th>Params</th>
-                                    <th>Replaces</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {#each setup.isa.pseudoInstructions as pins}
-                                    <tr>
-                                        <td>{pins.mnemonic}</td>
-                                        <td>{pins.params.join(", ")}</td>
-                                        <td>
-                                            {#each pins.expandsTo as line}
-                                                <div>- {line}</div>
-                                            {/each}
-                                        </td>
-                                    </tr>
-                                {/each}
-                            </tbody>
-                        </table>
-                    </details>
-                {/if}
-
-                {#if setup.isa.registers.length}
-                <details class="indented">
-                    <summary>Registers</summary>
-                    <p class="indented">{setup.isa.registers.join(", ")}</p>
-                </details>
-                {/if}
-
-                <details class="indented">
-                    <summary>Other</summary>
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>Field</th>
-                                <th>Value</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr>
-                                <td>First program index</td>
-                                <td>{setup.isa.firstProgramIndex}</td>
-                            </tr>
-                            <tr>
-                                <td>Jump to one before jump address</td>
-                                <td>{setup.isa.jumpToOneBeforeAddress}</td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </details>
-            </div>
-        </details>
-
-        <div class="workspace">
-            <div>
-                <textarea
-                    class="input-area"
-                    bind:value={source}
-                    onkeydown={handleKey}></textarea>
-                <button onclick={assembleButton}>Assemble</button>
-            </div>
-            {#if output.length > 0}
-                <div>
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>Addr</th>
-                                <th>Opcode</th>
-                                <th>Operands</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {#each output as row, i}
-                                <tr>
-                                    <td>{i + setup.isa.firstProgramIndex}</td>
-                                    <td>{row[0]}</td>
-                                    <td>{row.slice(1).join(" ")}</td>
-                                </tr>
-                            {/each}
-                        </tbody>
-                    </table>
-                    <button onclick={copyOutputToClipboard}>
-                        {copied ? "Copied!" : "Copy"}
-                    </button>
-                </div>
-            {/if}
-        </div>
-
         {#if error}
             <p class="error">{error}</p>
         {/if}
-    </div>
-</main>
+
+        {#if output.length !== 0}
+            <p class="status-bar-message">
+                {output.length} instruction{output.length > 1 ? "s" : ""} assembled
+            </p>
+        {/if}
+    </footer>
+</div>
 
 <style>
-    .indented {
-        margin-left: 1.5rem;
-    }
-    summary::after {
-        display: none;
-    }
-    summary::before {
-        content: "▸";
-    }
-    details[open] > summary::before {
-        content: "▾";
-    }
-    .main {
-        margin: 1rem;
-    }
-    .workspace {
+    .layout {
         display: grid;
-        grid-template-columns: 1fr 1fr; /* two equal columns */
-        gap: 1rem;
-        align-items: start;
+        height: 100vh;
+        color: var(--text);
+        grid-template-areas:
+            "toolbar toolbar toolbar"
+            "sidebar editor panel"
+            "status-bar status-bar status-bar";
+        grid-template-rows: 50px 1fr 50px;
+        grid-template-columns: 300px 2fr 350px;
     }
-    .ISA-reference {
-        max-height: 500px;
+    .toolbar {
+        grid-area: toolbar;
+        background-color: var(--bars);
+        border-bottom: 2px solid var(--line);
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 0 10px;
+    }
+    .isa-label {
+        margin-left: auto;
+    }
+    .isa-label {
+        color: white;
+    }
+
+    .sidebar {
+        grid-area: sidebar;
+        background-color: var(--panel);
+        border-right: 2px solid var(--line);
+        padding: 10px;
+        min-height: 0;
         overflow: auto;
     }
+    details > :not(summary) {
+        margin-left: 1rem;
+    }
+    .isa-reference > details > summary {
+        letter-spacing: 0.05rem;
+        color: var(--muted);
+        font-weight: 600;
+    }
+    .instruction-description {
+        margin-block: 0;
+        color: var(--muted);
+        font-size: 14px;
+    }
+    .expansion {
+        padding-left: 1rem;
+    }
+    .value {
+        color: var(--text);
+        font-size: 16px;
+    }
+    .registers {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        padding: 4px 0;
+    }
+    .register {
+        background-color: var(--bars);
+        color: var(--text);
+        font-family: var(--font-code);
+        font-size: 15px;
+        padding: 2px 8px;
+        border-radius: 4px;
+    }
+    .nested {
+        border-left: 1px solid var(--muted);
+    }
+    .nested > summary {
+        font-family: var(--font-code);
+        color: var(--code2);
+        padding-left: 0.5rem;
+    }
+    summary {
+        padding: 3px 0;
+        cursor: pointer;
+    }
+    summary::marker {
+        color: var(--muted);
+    }
+    summary:hover {
+        background: var(--bars);
+    }
+
+    .editor {
+        grid-area: editor;
+        background-color: var(--bg);
+        min-height: 0;
+    }
     .input-area {
-        font-size: medium;
+        width: 100%;
+        height: 100%;
+        background-color: var(--bg);
+        font-family: var(--font-code);
+        color: var(--text);
+        border: none;
+        overflow: auto;
+        resize: none;
+        padding: 12px;
+        line-height: 1.5;
+        tab-size: 4;
+        caret-color: var(--accent);
+    }
+    .input-area:focus-visible {
+        outline: 1px solid var(--accent);
+        outline-offset: -1px;
+    }
+
+    .panel {
+        grid-area: panel;
+        background-color: var(--panel);
+        border-left: 2px solid var(--line);
+        padding: 10px;
+        min-height: 0;
+        overflow: auto;
+    }
+    .output-table {
+        width: 100%;
+    }
+    .tabs {
+        display: flex;
+    }
+    .tabs button {
+        background: transparent;
+        color: var(--muted);
+        border-radius: 0;
+        border-bottom: 2px solid transparent;
+    }
+    .tabs button[aria-selected="true"] {
+        color: var(--text);
+        border-bottom-color: var(--accent);
+    }
+    .copy-button {
+        margin-top: 10px;
+    }
+
+    .status-bar {
+        grid-area: status-bar;
+        background-color: var(--bars);
+        border-top: 2px solid var(--line);
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 0 10px;
+    }
+    .error {
+        color: var(--error);
+    }
+    .status-bar-message {
+        color: var(--muted);
+        font-size: 16px;
     }
 </style>
