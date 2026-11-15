@@ -52,8 +52,7 @@ h1 {
   letter-spacing: 0.05rem;;
 }
 
-button,
-input[type="file"]::file-selector-button {
+button {
   background-color: var(--accent);
   color: var(--bars);
   padding: 7px;
@@ -84,4 +83,9 @@ table {
 
 tbody tr:hover {
   background: var(--bg);
+}
+
+* {
+    scrollbar-width: thin;
+    scrollbar-color: var(--line) transparent;   /* thumb colour, track colour */
 }

@@ -5,12 +5,14 @@
     import { parseText } from "./core/parser";
     import { expandPseudo } from "./core/expandPseudo";
     import IsaEditor from "./IsaEditor.svelte";
+    import Editor from "./Editor.svelte";
     let setup = $state.raw(setUpIsa(isaData));
     let output: number[][] = $state([]);
     let error = $state("");
     let isaError = $state("");
     let copied = $state(false);
     let editing = $state(false);
+    let fileInput: HTMLInputElement;
 
     let source = $state("");
     function assembleButton() {
@@ -64,13 +66,6 @@
         editing = false;
     }
 
-    function handleKey(event: KeyboardEvent) {
-        if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
-            event.preventDefault();
-            assembleButton();
-        }
-    }
-
     function outputToText() {
         return output.map((row) => row.join(" ")).join("\n");
     }
@@ -93,10 +88,13 @@
 <div class="layout">
     <header class="toolbar">
         <h1>Assembly Editor</h1>
+        <button onclick={() => fileInput.click()}>Import ISA</button>
         <input
             type="file"
             accept=".json"
             aria-label="Import ISA file"
+            hidden
+            bind:this={fileInput}
             onchange={importIsa}
         />
         <button onclick={assembleButton}>Assemble</button>
@@ -211,6 +209,7 @@
         </div>
     </aside>
 
+    <!--
     <main class="editor">
         <textarea
             class="input-area"
@@ -218,6 +217,14 @@
             spellcheck="false"
             bind:value={source}
             onkeydown={handleKey}></textarea>
+    </main>
+    -->
+    <main class="editor">
+        <Editor
+            value={source}
+            onchange={(text) => (source = text)}
+            onrun={assembleButton}
+        />
     </main>
 
     <section class="panel">
@@ -372,29 +379,11 @@
     summary:hover {
         background: var(--bars);
     }
-
+    
     .editor {
         grid-area: editor;
         background-color: var(--bg);
         min-height: 0;
-    }
-    .input-area {
-        width: 100%;
-        height: 100%;
-        background-color: var(--bg);
-        font-family: var(--font-code);
-        color: var(--text);
-        border: none;
-        overflow: auto;
-        resize: none;
-        padding: 12px;
-        line-height: 1.5;
-        tab-size: 4;
-        caret-color: var(--accent);
-    }
-    .input-area:focus-visible {
-        outline: 1px solid var(--accent);
-        outline-offset: -1px;
     }
 
     .panel {
@@ -420,6 +409,9 @@
     .tabs button[aria-selected="true"] {
         color: var(--text);
         border-bottom-color: var(--accent);
+    }
+    .tabs button:hover {
+        color: var(--text);
     }
     .copy-button {
         margin-top: 10px;

@@ -1,7 +1,8 @@
 <script lang="ts">
     import { loadIsa, type Isa } from "./core/isa";
 
-    let { isa, onapply}: { isa: Isa, onapply: (data: unknown) => void } = $props();
+    let { isa, onapply }: { isa: Isa; onapply: (data: unknown) => void } =
+        $props();
     let error: string = $state("");
 
     // svelte-ignore state_referenced_locally
@@ -16,7 +17,6 @@
             error = e instanceof Error ? e.message : String(e);
         }
     }
-
 </script>
 
 <article>
@@ -35,7 +35,10 @@
             <input type="number" bind:value={draft.firstProgramIndex} />
         </label>
         <label class="checkbox">
-            <input type="checkbox" bind:checked={draft.jumpToOneBeforeAddress} />
+            <input
+                type="checkbox"
+                bind:checked={draft.jumpToOneBeforeAddress}
+            />
             Jump to one before jump address
         </label>
     </div>
