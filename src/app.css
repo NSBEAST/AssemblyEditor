@@ -18,7 +18,7 @@ body {
   --accent: #4fe0b0;
   --code1: #ff8fa3;
   --code2: #f2cf66;
-  --error: #cc0000;
+  --error: #ff6b6b;
   --font-ui: "Inter Variable", system-ui, sans-serif;
   --font-code: "JetBrains Mono", ui-monospace, Consolas, monospace;
 }
@@ -88,4 +88,40 @@ tbody tr:hover {
 * {
     scrollbar-width: thin;
     scrollbar-color: var(--line) transparent;   /* thumb colour, track colour */
+}
+
+input:not([type="file"]):not([type="checkbox"]),
+select,
+textarea {
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  padding: 6px 8px;
+  min-width: 0;
+}
+
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+input[type="checkbox"] {
+  accent-color: var(--accent);
+}
+
+button:hover {
+  filter: brightness(1.1);
+}
+
+button:active {
+  transform: translateY(1px);
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: default;
 }

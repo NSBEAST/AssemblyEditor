@@ -166,7 +166,13 @@ function buildPseudoMnemonicMap(isa: Isa): Map<string, PseudoInstructionDef> {
     return map;
 }
 
-export function setUpIsa(data: unknown) {
+export interface IsaSetup {
+    isa: Isa;
+    mnemonicMap: Map<string, InstructionDef>;
+    pseudoMnemonicMap: Map<string, PseudoInstructionDef>;
+}
+
+export function setUpIsa(data: unknown): IsaSetup {
     const isa = loadIsa(data);
     const mnemonicMap = buildMnemonicMap(isa);
     const pseudoMnemonicMap = buildPseudoMnemonicMap(isa);

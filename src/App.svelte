@@ -1,16 +1,18 @@
 <script lang="ts">
-    import { assemble } from "./core/assembler";
     import isaData from "../isa/tm16.json";
-    import { setUpIsa } from "./core/isa";
-    import { parseText } from "./core/parser";
-    import { expandPseudo } from "./core/expandPseudo";
+    import { setUpIsa, type IsaSetup } from "./core/isa";
     import IsaEditor from "./IsaEditor.svelte";
     import Editor from "./Editor.svelte";
     import { findLabels } from "./asmLanguage";
-    let setup = $state.raw(setUpIsa(isaData));
+    import { AsmError } from "./core/asmError";
+    import { assembleSource } from "./core/assembleSource";
+    let setup: IsaSetup = $state.raw(setUpIsa(isaData));
     let output: number[][] = $state([]);
-    let error = $state("");
+
+    let errors: AsmError[] = $state([]);
+    let copyError: string = $state("");
     let isaError = $state("");
+
     let copied = $state(false);
     let editing = $state(false);
     let fileInput: HTMLInputElement;
@@ -33,21 +35,9 @@
     let labelSet = $derived(findLabels(source));
 
     function assembleButton() {
-        error = "";
-        try {
-            const { instructions, labels } = parseText(source, setup.isa);
-            const { instructions: newInstructions, labels: newLabels } =
-                expandPseudo(
-                    instructions,
-                    labels,
-                    setup.pseudoMnemonicMap,
-                    setup.isa,
-                );
-            output = assemble(newInstructions, newLabels, setup);
-        } catch (e) {
-            output = [];
-            error = e instanceof Error ? e.message : String(e);
-        }
+        const result = assembleSource(source, setup);
+        output = result.output;
+        errors = result.errors;
     }
 
     async function importIsa(
@@ -66,7 +56,7 @@
             const text = await file.text();
             setup = setUpIsa(JSON.parse(text));
             output = [];
-            error = "";
+            errors = [];
         } catch (e) {
             isaError =
                 "Could not load ISA file: " +
@@ -79,7 +69,7 @@
     function applyIsa(data: unknown) {
         setup = setUpIsa(data);
         output = [];
-        error = "";
+        errors = [];
         editing = false;
     }
 
@@ -88,6 +78,7 @@
     }
 
     async function copyOutputToClipboard() {
+        copyError = "";
         try {
             await navigator.clipboard.writeText(outputToText());
             copied = true;
@@ -95,7 +86,7 @@
                 copied = false;
             }, 1500);
         } catch (e) {
-            error =
+            copyError =
                 "Could not copy: " +
                 (e instanceof Error ? e.message : String(e));
         }
@@ -105,7 +96,8 @@
 <div class="layout">
     <header class="toolbar">
         <h1>TM Code Editor</h1>
-        <button onclick={() => fileInput.click()}>Import ISA</button>
+        <button onclick={assembleButton} title="Ctrl+Enter">Assemble</button>
+
         <input
             type="file"
             accept=".json"
@@ -114,7 +106,9 @@
             bind:this={fileInput}
             onchange={importIsa}
         />
-        <button onclick={assembleButton}>Assemble</button>
+        <button class="secondary-button" onclick={() => fileInput.click()}>
+            Import ISA
+        </button>
 
         <p class="isa-label">{setup.isa.name}</p>
     </header>
@@ -234,6 +228,7 @@
             mnemonics={mnemonicSet}
             registers={registerSet}
             labels={labelSet}
+            setup={setup}
         />
     </main>
 
@@ -255,31 +250,39 @@
             </button>
         </div>
         {#if editing}
-            <IsaEditor isa={setup.isa} onapply={applyIsa} />
+            {#key setup}
+                <IsaEditor isa={setup.isa} onapply={applyIsa} />
+            {/key}
         {:else}
-            <table class="output-table">
-                <thead>
-                    <tr>
-                        <th>Addr</th>
-                        <th>Opcode</th>
-                        <th>Operands</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {#each output as row, i}
+            {#if !errors.length}
+                <table class="output-table">
+                    <thead>
                         <tr>
-                            <td>{i + setup.isa.firstProgramIndex}</td>
-                            <td>{row[0]}</td>
-                            <td>{row.slice(1).join(" ")}</td>
+                            <th>Addr</th>
+                            <th>Opcode</th>
+                            <th>Operands</th>
                         </tr>
-                    {/each}
-                </tbody>
-            </table>
+                    </thead>
+                    <tbody>
+                        {#each output as row, i}
+                            <tr>
+                                <td>{i + setup.isa.firstProgramIndex}</td>
+                                <td>{row[0]}</td>
+                                <td>{row.slice(1).join(" ")}</td>
+                            </tr>
+                        {/each}
+                    </tbody>
+                </table>
 
-            {#if output.length !== 0}
-                <button onclick={copyOutputToClipboard} class="copy-button">
-                    {copied ? "Copied!" : "Copy"}
-                </button>
+                {#if output.length !== 0}
+                    <button onclick={copyOutputToClipboard} class="copy-button">
+                        {copied ? "Copied!" : "Copy"}
+                    </button>
+                {/if}
+            {:else}
+                {#each errors as err}
+                    <p class="error">{err.message}</p>
+                {/each}
             {/if}
         {/if}
     </section>
@@ -289,8 +292,16 @@
             <p class="error">{isaError}</p>
         {/if}
 
-        {#if error}
-            <p class="error">{error}</p>
+        {#if errors.length}
+            <p class="error status-error">
+                {errors.length} error{errors.length > 1 ? "s" : ""}: {errors[0].message.slice(
+                    errors[0].message.indexOf("line"),
+                )}
+            </p>
+        {/if}
+
+        {#if copyError}
+            <p class="error">{copyError}</p>
         {/if}
 
         {#if output.length !== 0}
@@ -311,7 +322,7 @@
             "sidebar editor panel"
             "status-bar status-bar status-bar";
         grid-template-rows: 50px 1fr 50px;
-        grid-template-columns: 300px 2fr 350px;
+        grid-template-columns: 300px 2fr clamp(350px, 30vw, 480px);
     }
     .toolbar {
         grid-area: toolbar;
@@ -322,6 +333,13 @@
         gap: 10px;
         padding: 0 10px;
     }
+    .secondary-button {
+        background-color: transparent;
+        outline: 2px solid var(--accent);
+        outline-offset: -2px;
+        color: var(--text);
+    }
+
     .isa-label {
         margin-left: auto;
     }
@@ -409,6 +427,8 @@
     }
     .tabs {
         display: flex;
+        border-bottom: 2px solid var(--line);
+        padding-bottom: 15px;
     }
     .tabs button {
         background: transparent;
@@ -438,6 +458,14 @@
     }
     .error {
         color: var(--error);
+        border-left: 3px solid var(--error);
+        padding-left: 5px;
+    }
+    .status-error {
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        min-width: 0;
     }
     .status-bar-message {
         color: var(--muted);

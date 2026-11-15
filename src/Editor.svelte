@@ -3,8 +3,11 @@
     import { EditorView, basicSetup } from "codemirror";
     import { keymap } from "@codemirror/view";
     import { indentWithTab } from "@codemirror/commands";
-    import { Compartment } from "@codemirror/state";
+    import { Compartment, StateEffect } from "@codemirror/state";
     import { makeAsmLanguage, asmHighlighting } from "./asmLanguage";
+    import { linter, type Diagnostic } from "@codemirror/lint";
+    import { assembleSource } from "./core/assembleSource";
+    import type { IsaSetup } from "./core/isa";
 
     let {
         value,
@@ -13,6 +16,7 @@
         mnemonics,
         registers,
         labels,
+        setup,
     }: {
         value: string;
         onchange: (text: string) => void;
@@ -20,18 +24,50 @@
         mnemonics: Set<string>;
         registers: Set<string>;
         labels: Set<string>;
+        setup: IsaSetup;
     } = $props();
 
     let container: HTMLDivElement;
     let view: EditorView;
 
     const languageSlot = new Compartment();
+    const isaChanged = StateEffect.define<null>();
+
+    const asmLinter = linter(
+        (view): Diagnostic[] => {
+            const { errors } = assembleSource(view.state.doc.toString(), setup);
+            const diagnostics = errors
+                .filter((x) => x.line >= 1 && x.line <= view.state.doc.lines)
+                .map(
+                    (err): Diagnostic => ({
+                        from: view.state.doc.line(err.line).from,
+                        to: view.state.doc.line(err.line).to,
+                        severity: "error",
+                        message: err.message.slice(
+                            err.message.indexOf(":") + 2,
+                        ),
+                    }),
+                );
+            return diagnostics;
+        },
+        {
+            needsRefresh: (update) =>
+                update.transactions.some((tr) =>
+                    tr.effects.some((e) => e.is(isaChanged)),
+                ),
+        },
+    );
 
     $effect(() => {
         const language = makeAsmLanguage(mnemonics, registers, labels);
         view?.dispatch({
             effects: languageSlot.reconfigure(language),
         });
+    });
+
+    $effect(() => {
+        setup;
+        view?.dispatch({ effects: isaChanged.of(null) });
     });
 
     const theme = EditorView.theme(
@@ -99,6 +135,7 @@
                 }),
                 languageSlot.of(makeAsmLanguage(mnemonics, registers, labels)),
                 asmHighlighting,
+                asmLinter,
             ],
         });
 

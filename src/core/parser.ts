@@ -1,5 +1,6 @@
 import type { ParsedInstruction } from "./instruction";
 import type { Isa } from "./isa";
+import { AsmError, AsmErrors } from "./asmError";
 
 export function stripComment(line: string): string {
     if (line.indexOf(";") === -1) return line;
@@ -30,6 +31,7 @@ export function parseText(text: string, isa: Isa): {instructions: ParsedInstruct
     const lines: string[] = text.split(/\r?\n/);
     let instructions: ParsedInstruction[] = [];
     const labels = new Map<string, number>();
+    const errors: AsmError[] = [];
 
     let index: number = isa.firstProgramIndex;
     for (const [i, line] of lines.entries()) {
@@ -38,8 +40,9 @@ export function parseText(text: string, isa: Isa): {instructions: ParsedInstruct
 
         if (label) {
             if (labels.has(label))
-                throw new Error(`Error on line ${i + 1}: label '${label}' is already defined`);
-            labels.set(label, index);
+                errors.push(new AsmError(i + 1, `label '${label}' is already defined`));
+            else
+                labels.set(label, index);
         }
 
         const {mnemonic, operands} = splitInstruction(rest);
@@ -50,5 +53,7 @@ export function parseText(text: string, isa: Isa): {instructions: ParsedInstruct
             index++;
         }
     }
+    if (errors.length) throw new AsmErrors(errors);
+
     return {instructions: instructions, labels: labels}
 }
