@@ -2,6 +2,7 @@
     import isaData from "../isa/tm16.json";
     import { setUpIsa, rawIsaData, resolveWordLayout, type IsaSetup } from "./core/isa";
     import IsaEditor from "./IsaEditor.svelte";
+    import BlueprintPanel from "./BlueprintPanel.svelte";
     import Editor from "./Editor.svelte";
     import { findLabels } from "./asmLanguage";
     import { AsmError } from "./core/asmError";
@@ -73,7 +74,7 @@
     let isaError = $state("");
 
     let copied = $state(false);
-    let editing = $state(false);
+    let tab: "output" | "blueprint" | "isa" = $state("output");
     let fileInput: HTMLInputElement;
 
     let mnemonicSet = $derived(
@@ -142,7 +143,7 @@
         setup = setUpIsa(data);
         saveIsa(setup);
         clearOutput();
-        editing = false;
+        tab = "output";
     }
 
     let sourceInput: HTMLInputElement;
@@ -369,25 +370,22 @@
 
     <section class="panel">
         <div class="tabs" role="tablist">
-            <button
-                role="tab"
-                aria-selected={!editing}
-                onclick={() => (editing = false)}
-            >
+            <button role="tab" aria-selected={tab === "output"} onclick={() => (tab = "output")}>
                 Output
             </button>
-            <button
-                role="tab"
-                aria-selected={editing}
-                onclick={() => (editing = true)}
-            >
+            <button role="tab" aria-selected={tab === "blueprint"} onclick={() => (tab = "blueprint")}>
+                Blueprint
+            </button>
+            <button role="tab" aria-selected={tab === "isa"} onclick={() => (tab = "isa")}>
                 Edit ISA
             </button>
         </div>
-        {#if editing}
+        {#if tab === "isa"}
             {#key setup}
                 <IsaEditor isa={setup.isa} onapply={applyIsa} />
             {/key}
+        {:else if tab === "blueprint"}
+            <BlueprintPanel rows={errors.length ? [] : romRows} firstIndex={setup.isa.firstProgramIndex} />
         {:else}
             {#if !errors.length}
                 <table class="output-table">
