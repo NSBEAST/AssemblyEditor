@@ -6,6 +6,7 @@
     import { expandPseudo } from "./core/expandPseudo";
     import IsaEditor from "./IsaEditor.svelte";
     import Editor from "./Editor.svelte";
+    import { findLabels } from "./asmLanguage";
     let setup = $state.raw(setUpIsa(isaData));
     let output: number[][] = $state([]);
     let error = $state("");
@@ -14,7 +15,23 @@
     let editing = $state(false);
     let fileInput: HTMLInputElement;
 
+    let mnemonicSet = $derived(
+        new Set(
+            [
+                ...setup.mnemonicMap.keys(),
+                ...setup.pseudoMnemonicMap.keys(),
+            ].map((m) => m.toUpperCase()),
+        ),
+    );
+
+    let registerSet = $derived(
+        new Set(setup.isa.registers.map((r) => r.toUpperCase())),
+    );
+
     let source = $state("");
+
+    let labelSet = $derived(findLabels(source));
+
     function assembleButton() {
         error = "";
         try {
@@ -87,7 +104,7 @@
 
 <div class="layout">
     <header class="toolbar">
-        <h1>Assembly Editor</h1>
+        <h1>TM Code Editor</h1>
         <button onclick={() => fileInput.click()}>Import ISA</button>
         <input
             type="file"
@@ -209,21 +226,14 @@
         </div>
     </aside>
 
-    <!--
-    <main class="editor">
-        <textarea
-            class="input-area"
-            aria-label="Assembly source"
-            spellcheck="false"
-            bind:value={source}
-            onkeydown={handleKey}></textarea>
-    </main>
-    -->
     <main class="editor">
         <Editor
             value={source}
             onchange={(text) => (source = text)}
             onrun={assembleButton}
+            mnemonics={mnemonicSet}
+            registers={registerSet}
+            labels={labelSet}
         />
     </main>
 
@@ -379,7 +389,7 @@
     summary:hover {
         background: var(--bars);
     }
-    
+
     .editor {
         grid-area: editor;
         background-color: var(--bg);

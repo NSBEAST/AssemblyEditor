@@ -3,16 +3,36 @@
     import { EditorView, basicSetup } from "codemirror";
     import { keymap } from "@codemirror/view";
     import { indentWithTab } from "@codemirror/commands";
+    import { Compartment } from "@codemirror/state";
+    import { makeAsmLanguage, asmHighlighting } from "./asmLanguage";
 
     let {
         value,
         onchange,
         onrun,
-    }: { value: string; onchange: (text: string) => void; onrun: () => void } =
-        $props();
+        mnemonics,
+        registers,
+        labels,
+    }: {
+        value: string;
+        onchange: (text: string) => void;
+        onrun: () => void;
+        mnemonics: Set<string>;
+        registers: Set<string>;
+        labels: Set<string>;
+    } = $props();
 
     let container: HTMLDivElement;
     let view: EditorView;
+
+    const languageSlot = new Compartment();
+
+    $effect(() => {
+        const language = makeAsmLanguage(mnemonics, registers, labels);
+        view?.dispatch({
+            effects: languageSlot.reconfigure(language),
+        });
+    });
 
     const theme = EditorView.theme(
         {
@@ -77,6 +97,8 @@
                         onchange(update.state.doc.toString());
                     }
                 }),
+                languageSlot.of(makeAsmLanguage(mnemonics, registers, labels)),
+                asmHighlighting,
             ],
         });
 
