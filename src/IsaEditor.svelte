@@ -28,6 +28,7 @@
         register: "register",
         immediate: "number (immediate)",
         label: "label (jump target)",
+        relativeLabel: "label (relative jump)",
     };
 
     function layoutFrom(source: Isa) {
@@ -150,7 +151,7 @@
         }
     }
 
-    const typeLetter: Record<string, string> = { register: "R", immediate: "I", label: "L" };
+    const typeLetter: Record<string, string> = { register: "R", immediate: "I", label: "L", relativeLabel: "B" };
 
     function operandName(operands: OperandRow[], i: number) {
         const own = operands[i].field.trim();

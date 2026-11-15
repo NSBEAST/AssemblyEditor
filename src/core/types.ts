@@ -1,1 +1,1 @@
-export const operandTypes = ["register", "immediate", "label"];
+export const operandTypes = ["register", "immediate", "label", "relativeLabel"];

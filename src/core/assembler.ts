@@ -23,7 +23,8 @@ function wordLength(instruction: ParsedInstruction, setup: IsaSetup, layout: Wor
     return 1 + setup.isa.formats[def.format].operands.length;
 }
 
-function assembleMnemonic(instruction: ParsedInstruction, isa: Isa, labels: Map<string, number>, def: InstructionDef, layout: WordLayout) {
+// address: where this instruction starts, relative jumps count from there
+function assembleMnemonic(instruction: ParsedInstruction, isa: Isa, labels: Map<string, number>, def: InstructionDef, layout: WordLayout, address: number) {
     const { opcode, format, immRange } = def;
     const formatOperands = isa.formats[format].operands;
     const registers = isa.registers.map((r) => r.toUpperCase());
@@ -50,6 +51,17 @@ function assembleMnemonic(instruction: ParsedInstruction, isa: Isa, labels: Map<
                 if (address === undefined)
                     throw new AsmError(instruction.source_line, `argument ${index + 1} expects a label, '${operand}' was given instead`);
                 values.push(isa.jumpToOneBeforeAddress ? address - 1 : address);
+                break;
+            }
+
+            case "relativeLabel": {
+                const target = labels.get(operand);
+                if (target === undefined)
+                    throw new AsmError(instruction.source_line, `argument ${index + 1} expects a label, '${operand}' was given instead`);
+                const offset = target - address - (isa.jumpToOneBeforeAddress ? 1 : 0);
+                if (immRange !== undefined && (offset < immRange[0] || offset > immRange[1]))
+                    throw new AsmError(instruction.source_line, `argument ${index + 1}: the jump to '${operand}' is ${offset} away, but the offset must be between ${immRange[0]} and ${immRange[1]}`);
+                values.push(offset);
                 break;
             }
 
@@ -106,23 +118,23 @@ export function assemble(instructions: ParsedInstruction[], labels: Map<string, 
 
     const finalCode: number[][] = []
 
-    // with word addressing a label is the address of its first number, not of its instruction
-    if (layout.addressing === "word") {
-        const starts: number[] = [];
-        let next = isa.firstProgramIndex;
-        for (const instruction of instructions) {
-            starts.push(next);
-            next += wordLength(instruction, setup, layout);
-        }
-        starts.push(next);
-        labels = new Map([...labels].map(([name, address]) => [name, starts[address - isa.firstProgramIndex]]));
-    }
-
+    // where every instruction starts (and one past the end, for a label after the last instruction).
+    // with word addressing that is the address of its first number, not of the instruction
+    const starts: number[] = [];
+    let next = isa.firstProgramIndex;
     for (const instruction of instructions) {
+        starts.push(next);
+        next += layout.addressing === "word" ? wordLength(instruction, setup, layout) : 1;
+    }
+    starts.push(next);
+    if (layout.addressing === "word")
+        labels = new Map([...labels].map(([name, address]) => [name, starts[address - isa.firstProgramIndex]]));
+
+    for (const [index, instruction] of instructions.entries()) {
         const def = mnemonicMap.get(instruction.mnemonic);
         try {
             if (def !== undefined) {
-                finalCode.push(assembleMnemonic(instruction, isa, labels, def, layout));
+                finalCode.push(assembleMnemonic(instruction, isa, labels, def, layout, starts[index]));
             }
             else {
                 finalCode.push(assembleMachineCode(instruction, labels, isa));
