@@ -1,6 +1,6 @@
 <script lang="ts">
     import { tick } from "svelte";
-    import { loadIsa, type Isa } from "./core/isa";
+    import { loadIsa, resolveWordLayout, type Isa } from "./core/isa";
     import { operandTypes } from "./core/types";
 
     let { isa, onapply }: { isa: Isa; onapply: (data: unknown) => void } =
@@ -30,12 +30,18 @@
         label: "label (jump target)",
     };
 
+    function layoutFrom(source: Isa) {
+        const layout = resolveWordLayout(source);
+        return { ...layout, unusedValue: layout.unusedValue as number | null };
+    }
+
     function fromIsa(source: Isa) {
         return {
             name: source.name,
             description: source.description,
             firstProgramIndex: source.firstProgramIndex as number | null,
             jumpToOneBeforeAddress: source.jumpToOneBeforeAddress,
+            layout: layoutFrom(source),
             registers: [...source.registers],
             instructions: source.instructions.map(
                 (ins): InstructionRow => ({
@@ -64,6 +70,7 @@
     let draft = $state(fromIsa(isa));
     let error: string = $state("");
     let newRegister: string = $state("");
+    let newColumn: string = $state("");
 
     function splitList(text: string, separator: RegExp) {
         return text
@@ -87,6 +94,62 @@
         }
     }
 
+    function addColumns(text: string) {
+        for (const c of splitList(text, /[,\s]+/)) {
+            if (!draft.layout.columns.includes(c)) draft.layout.columns.push(c);
+        }
+        newColumn = "";
+    }
+    function onColumnKey(e: KeyboardEvent) {
+        if (e.key === "Enter" || e.key === "," || e.key === " ") {
+            e.preventDefault();
+            addColumns(newColumn);
+        } else if (e.key === "Backspace" && newColumn === "") {
+            draft.layout.columns.pop();
+        }
+    }
+
+    // switching to fixed words starts from the opcode plus every operand name that is already in use
+    function setMode(mode: "variable" | "fixed") {
+        draft.layout.mode = mode;
+        if (mode === "fixed" && draft.layout.columns.length === 0) {
+            const names = draft.instructions.flatMap((ins) => ins.operands.map((o) => o.field.trim()));
+            draft.layout.columns = ["opcode", ...new Set(names.filter((n) => n !== "" && n !== "opcode"))];
+        }
+    }
+
+    // the machine words of one instruction, with the operand names where their values will be
+    function exampleWord(ins: InstructionRow): string {
+        const opcode = ins.opcode === null ? "?" : String(ins.opcode);
+        const layout = draft.layout;
+        if (layout.mode === "fixed") {
+            const unused = String(layout.unusedValue ?? 0);
+            return layout.columns
+                .map((c) => (c === "opcode" ? opcode : ins.operands.some((o) => o.field === c) ? c : unused))
+                .join(" ");
+        }
+        const names = ins.operands.map((_, j) => operandName(ins.operands, j));
+        return (layout.opcodePosition === "last" ? [...names, opcode] : [opcode, ...names]).join(" ");
+    }
+
+    // in fixed mode every operand needs its own column, reported on the instruction so its row opens
+    function checkColumns() {
+        if (draft.layout.mode !== "fixed") return;
+        const columns = draft.layout.columns;
+        const free = columns.filter((c) => c !== "opcode").join(", ") || "none defined";
+        for (const [i, ins] of draft.instructions.entries()) {
+            const used = new Set<string>();
+            for (const [j, operand] of ins.operands.entries()) {
+                const where = `'instructions[${i}]' operand ${j + 1}`;
+                if (operand.field === "opcode" || !columns.includes(operand.field))
+                    throw new Error(`${where} needs a column from the word layout (${free})`);
+                if (used.has(operand.field))
+                    throw new Error(`${where} uses column '${operand.field}' a second time`);
+                used.add(operand.field);
+            }
+        }
+    }
+
     const typeLetter: Record<string, string> = { register: "R", immediate: "I", label: "L" };
 
     function operandName(operands: OperandRow[], i: number) {
@@ -96,6 +159,11 @@
         const same = operands.filter((o) => o.type === type);
         const nth = operands.slice(0, i + 1).filter((o) => o.type === type).length;
         return same.length > 1 ? `${type}${nth}` : type;
+    }
+
+    function layoutIsDefault() {
+        const l = draft.layout;
+        return l.mode === "variable" && l.opcodePosition === "first" && (l.unusedValue ?? 0) === 0 && l.addressing === "instruction";
     }
 
     function toIsa(): unknown {
@@ -134,6 +202,18 @@
             registers: [...draft.registers],
             firstProgramIndex: draft.firstProgramIndex,
             jumpToOneBeforeAddress: draft.jumpToOneBeforeAddress,
+            // only written when something differs from the defaults, so plain ISAs stay as they were
+            ...(layoutIsDefault()
+                ? {}
+                : {
+                      wordLayout: {
+                          mode: draft.layout.mode,
+                          opcodePosition: draft.layout.opcodePosition,
+                          ...(draft.layout.mode === "fixed" ? { columns: [...draft.layout.columns] } : {}),
+                          unusedValue: draft.layout.unusedValue ?? 0,
+                          addressing: draft.layout.addressing,
+                      },
+                  }),
             formats,
             instructions,
             pseudoInstructions: draft.pseudoInstructions.map((p) => ({
@@ -152,6 +232,7 @@
     async function validate(): Promise<unknown | null> {
         error = "";
         try {
+            checkColumns();
             const data = toIsa();
             loadIsa(data);
             return data;
@@ -172,12 +253,14 @@
 
     async function apply() {
         addRegisters(newRegister);
+        addColumns(newColumn);
         const data = await validate();
         if (data) onapply(data);
     }
 
     async function download() {
         addRegisters(newRegister);
+        addColumns(newColumn);
         const data = await validate();
         if (!data) return;
         const blob = new Blob([JSON.stringify(data, null, 2) + "\n"], {
@@ -260,6 +343,73 @@
     </details>
 
     <details>
+        <summary>Word layout</summary>
+        <div class="fields">
+            <label>
+                Instruction length
+                <select value={draft.layout.mode} onchange={(e) => setMode(e.currentTarget.value as "variable" | "fixed")}>
+                    <option value="variable">Variable: opcode followed by the operands as written</option>
+                    <option value="fixed">Fixed: every instruction has the same columns</option>
+                </select>
+            </label>
+            {#if draft.layout.mode === "variable"}
+                <label>
+                    Opcode position
+                    <select bind:value={draft.layout.opcodePosition}>
+                        <option value="first">First</option>
+                        <option value="last">Last</option>
+                    </select>
+                </label>
+            {:else}
+                <div class="field">
+                    <span class="label-text">Columns</span>
+                    <div class="chips">
+                        {#each draft.layout.columns as column, i}
+                            <span class="chip">
+                                {column}
+                                <button class="chip-x" onclick={() => draft.layout.columns.splice(i, 1)} aria-label="Remove {column}">✕</button>
+                            </span>
+                        {/each}
+                        <input
+                            type="text"
+                            class="chip-input"
+                            placeholder="Add…"
+                            aria-label="Add column"
+                            bind:value={newColumn}
+                            onkeydown={onColumnKey}
+                            onblur={() => addColumns(newColumn)}
+                        />
+                    </div>
+                    <small>
+                        Keep <code>opcode</code> once. Give every operand a column on its instruction, unused columns get the value below.
+                    </small>
+                </div>
+                <label>
+                    Value for unused columns
+                    <input type="number" bind:value={draft.layout.unusedValue} />
+                </label>
+            {/if}
+            <label>
+                What one address holds
+                <select bind:value={draft.layout.addressing}>
+                    <option value="instruction">A whole instruction</option>
+                    <option value="word">A single number</option>
+                </select>
+            </label>
+            {#if draft.layout.addressing === "instruction"}
+                <small class="addressing-help">
+                    Every instruction has one address and fills one ROM row, however many numbers it has. After a 4-number instruction at address 5, the next one is at address 6. Pick this when your CPU reads a whole instruction at once.
+                </small>
+            {:else}
+                <small class="addressing-help">
+                    Every number has its own address and the ROM stores one number per row. After a 4-number instruction at address 5, the next one is at address 9, and a label points at the first number of its instruction. Pick this when your CPU reads the program one number at a time.
+                </small>
+            {/if}
+            <small>Machine code lines are always variable length, in both cases.</small>
+        </div>
+    </details>
+
+    <details>
         <summary>Instructions ({draft.instructions.length})</summary>
         <p class="help">Operands are the values you write after the instruction, in order.</p>
         {#each draft.instructions as ins, i}
@@ -300,16 +450,29 @@
                                     <option value={type}>{typeLabels[type] ?? type}</option>
                                 {/each}
                             </select>
-                            <input
-                                type="text"
-                                placeholder="name (optional)"
-                                aria-label="Operand name"
-                                bind:value={operand.field}
-                            />
+                            {#if draft.layout.mode === "fixed"}
+                                <select aria-label="Operand column" bind:value={operand.field}>
+                                    <option value="" disabled>column…</option>
+                                    {#each draft.layout.columns.filter((c) => c !== "opcode") as column}
+                                        <option value={column}>{column}</option>
+                                    {/each}
+                                    {#if operand.field !== "" && !draft.layout.columns.includes(operand.field)}
+                                        <option value={operand.field}>{operand.field} (no such column)</option>
+                                    {/if}
+                                </select>
+                            {:else}
+                                <input
+                                    type="text"
+                                    placeholder="name (optional)"
+                                    aria-label="Operand name"
+                                    bind:value={operand.field}
+                                />
+                            {/if}
                             <button class="ghost danger" onclick={() => ins.operands.splice(j, 1)} aria-label="Remove operand">✕</button>
                         </div>
                     {/each}
                     <button class="link" onclick={() => ins.operands.push({ field: "", type: "register" })}>+ Add operand</button>
+                    <small class="example">Machine words: <code>{exampleWord(ins)}</code></small>
                     <div class="row">
                         <label class="checkbox">
                             <input type="checkbox" bind:checked={ins.hasRange} />
@@ -428,6 +591,10 @@
         font-size: 12px;
         color: var(--muted);
         opacity: 0.85;
+    }
+    .example code {
+        font-family: ui-monospace, monospace;
+        color: var(--text, inherit);
     }
     .under-checkbox {
         margin-top: -4px;

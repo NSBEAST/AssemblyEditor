@@ -1,6 +1,6 @@
 <script lang="ts">
     import isaData from "../isa/tm16.json";
-    import { setUpIsa, type IsaSetup } from "./core/isa";
+    import { setUpIsa, rawIsaData, resolveWordLayout, type IsaSetup } from "./core/isa";
     import IsaEditor from "./IsaEditor.svelte";
     import Editor from "./Editor.svelte";
     import { findLabels } from "./asmLanguage";
@@ -38,6 +38,35 @@
 
     let setup: IsaSetup = $state.raw(loadSavedSetup());
     let output: number[][] = $state([]);
+    // what the ROM stores: padded rows, or one number per row with word addressing
+    let romRows: number[][] = $state([]);
+    let romColumns: string[] | undefined = $state(undefined);
+
+    let layout = $derived(resolveWordLayout(setup.isa));
+
+    // every ISA file in the isa folder can be loaded from the toolbar
+    const builtinIsas = Object.values(
+        import.meta.glob("../isa/*.json", { eager: true, import: "default" }),
+    ).map((data) => ({ name: (data as { name: string }).name, data }));
+    builtinIsas.push({ name: rawIsaData.name, data: rawIsaData });
+
+    function clearOutput() {
+        output = [];
+        romRows = [];
+        romColumns = undefined;
+        errors = [];
+    }
+
+    function loadBuiltin(event: Event & { currentTarget: HTMLSelectElement }) {
+        const select = event.currentTarget;
+        const chosen = builtinIsas[Number(select.value)];
+        select.value = "";
+        if (!chosen) return;
+        isaError = "";
+        setup = setUpIsa(chosen.data);
+        saveIsa(setup);
+        clearOutput();
+    }
 
     let errors: AsmError[] = $state([]);
     let copyError: string = $state("");
@@ -78,6 +107,8 @@
     function assembleButton() {
         const result = assembleSource(source, setup);
         output = result.output;
+        romRows = result.rom;
+        romColumns = result.romColumns;
         errors = result.errors;
     }
 
@@ -97,8 +128,7 @@
             const text = await file.text();
             setup = setUpIsa(JSON.parse(text));
             saveIsa(setup);
-            output = [];
-            errors = [];
+            clearOutput();
         } catch (e) {
             isaError =
                 "Could not load ISA file: " +
@@ -111,8 +141,7 @@
     function applyIsa(data: unknown) {
         setup = setUpIsa(data);
         saveIsa(setup);
-        output = [];
-        errors = [];
+        clearOutput();
         editing = false;
     }
 
@@ -125,8 +154,7 @@
         const file = input.files?.[0];
         if (!file) return;
         source = await file.text();
-        output = [];
-        errors = [];
+        clearOutput();
         input.value = "";
     }
 
@@ -141,7 +169,8 @@
     }
 
     function outputToText() {
-        return output.map((row) => row.join(" ")).join("\n");
+        const rows = layout.addressing === "word" ? romRows : output;
+        return rows.map((row) => row.join(" ")).join("\n");
     }
 
     async function copyOutputToClipboard() {
@@ -176,6 +205,12 @@
         <button class="secondary-button" onclick={() => fileInput.click()}>
             Import ISA
         </button>
+        <select class="secondary-button" aria-label="Load built-in ISA" value="" onchange={loadBuiltin}>
+            <option value="" disabled>Built-in ISA…</option>
+            {#each builtinIsas as builtin, i}
+                <option value={i}>{builtin.name}</option>
+            {/each}
+        </select>
 
         <input
             type="file"
@@ -298,6 +333,23 @@
                         {setup.isa.jumpToOneBeforeAddress}
                     </span>
                 </p>
+                <p class="instruction-description">
+                    Instruction length: <span class="value">
+                        {layout.mode === "fixed"
+                            ? `fixed, columns ${layout.columns.join(" ")}`
+                            : `variable, opcode ${layout.opcodePosition}`}
+                    </span>
+                </p>
+                {#if layout.mode === "fixed" && layout.unusedValue !== 0}
+                    <p class="instruction-description">
+                        Unused columns: <span class="value">{layout.unusedValue}</span>
+                    </p>
+                {/if}
+                <p class="instruction-description">
+                    PC counts: <span class="value">
+                        {layout.addressing === "word" ? "every number" : "instructions"}
+                    </span>
+                </p>
             </details>
         </div>
     </aside>
@@ -342,16 +394,36 @@
                     <thead>
                         <tr>
                             <th>Addr</th>
-                            <th>Opcode</th>
-                            <th>Operands</th>
+                            {#if layout.addressing === "word"}
+                                <th>Value</th>
+                            {:else if romColumns}
+                                {#each romColumns as column}
+                                    <th>{column}</th>
+                                {/each}
+                            {:else if layout.mode === "variable" && layout.opcodePosition === "first"}
+                                <th>Opcode</th>
+                                <th>Operands</th>
+                            {:else}
+                                <th>Numbers</th>
+                            {/if}
                         </tr>
                     </thead>
                     <tbody>
-                        {#each output as row, i}
+                        {#each layout.addressing === "word" || romColumns ? romRows : output as row, i}
                             <tr>
                                 <td>{i + setup.isa.firstProgramIndex}</td>
-                                <td>{row[0]}</td>
-                                <td>{row.slice(1).join(" ")}</td>
+                                {#if layout.addressing === "word"}
+                                    <td>{row[0]}</td>
+                                {:else if romColumns}
+                                    {#each row as value}
+                                        <td>{value}</td>
+                                    {/each}
+                                {:else if layout.mode === "variable" && layout.opcodePosition === "first"}
+                                    <td>{row[0]}</td>
+                                    <td>{row.slice(1).join(" ")}</td>
+                                {:else}
+                                    <td>{row.join(" ")}</td>
+                                {/if}
                             </tr>
                         {/each}
                     </tbody>
@@ -389,7 +461,9 @@
 
         {#if output.length !== 0}
             <p class="status-bar-message">
-                {output.length} instruction{output.length > 1 ? "s" : ""} assembled
+                {output.length} instruction{output.length > 1 ? "s" : ""} assembled{layout.addressing === "word"
+                    ? `, ${romRows.length} numbers`
+                    : ""}
             </p>
         {/if}
 
@@ -426,6 +500,10 @@
         background-color: transparent;
         outline: 2px solid var(--accent);
         outline-offset: -2px;
+        color: var(--text);
+    }
+    select.secondary-button option {
+        background-color: var(--panel);
         color: var(--text);
     }
 

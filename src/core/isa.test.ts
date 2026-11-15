@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { loadIsa, buildMnemonicMap, setUpIsa } from "./isa";
+import { loadIsa, buildMnemonicMap, setUpIsa, resolveWordLayout, rawIsaData } from "./isa";
 import isaData from "../../isa/tm16.json";
 
 // every bad ISA below is a copy of tm16.json with one thing changed, so the original stays untouched
@@ -60,4 +60,73 @@ test("setUpIsa validates and builds the mnemonic map", () => {
     expect(setup.isa.name).toBe("TM16");
     expect(setup.mnemonicMap.get("ADD")?.opcode).toBe(1);
     expect(() => setUpIsa({})).toThrow();
+});
+
+
+// ---- wordLayout
+
+const fixedLayout = { mode: "fixed", columns: ["opcode", "rd", "rs1", "rs2", "imm", "offset", "addr"] };
+
+test("without wordLayout the defaults are variable length, opcode first, instruction addressing", () => {
+    expect(resolveWordLayout(loadIsa(isaData))).toEqual({ mode: "variable", opcodePosition: "first", columns: [], unusedValue: 0, addressing: "instruction" });
+});
+
+test("loadIsa accepts a complete fixed wordLayout", () => {
+    const isa = copyOfIsa();
+    isa.wordLayout = { ...fixedLayout, unusedValue: 0, addressing: "word" };
+    const layout = resolveWordLayout(loadIsa(isa));
+    expect(layout.mode).toBe("fixed");
+    expect(layout.columns).toHaveLength(7);
+    expect(layout.addressing).toBe("word");
+});
+
+test("the raw machine code ISA is valid", () => {
+    expect(() => setUpIsa(rawIsaData)).not.toThrow();
+});
+
+const badLayouts: Array<[string, (layout: any) => void, string]> = [
+    ["unknown mode", (l) => { l.mode = "wide"; }, "'wordLayout.mode' must be one of: variable, fixed"],
+    ["unknown opcodePosition", (l) => { l.opcodePosition = "middle"; }, "'wordLayout.opcodePosition' must be one of: first, last"],
+    ["unknown addressing", (l) => { l.addressing = "byte"; }, "'wordLayout.addressing' must be one of: instruction, word"],
+    ["non-numeric unusedValue", (l) => { l.unusedValue = "0"; }, "'wordLayout.unusedValue' must be a number"],
+    ["columns that is not a list", (l) => { l.columns = "opcode"; }, "'wordLayout.columns' must be a list"],
+    ["empty column name", (l) => { l.columns[1] = " "; }, "'wordLayout.columns[1]' must be a non-empty string"],
+    ["duplicate column", (l) => { l.columns[2] = "rd"; }, "'wordLayout.columns[2]' must be unique"],
+    ["fixed without columns", (l) => { delete l.columns; }, "'wordLayout.columns' is required"],
+    ["fixed without opcode column", (l) => { l.columns[0] = "op"; }, "must contain 'opcode' exactly once (found 0)"],
+    ["operand field missing in columns", (l) => { l.columns = l.columns.filter((c: string) => c !== "imm"); }, "'formats.I.operands[2].field' must be one of the 'wordLayout.columns'"],
+];
+
+test.each(badLayouts)("loadIsa rejects wordLayout with %s", (_name, change, message) => {
+    const isa = copyOfIsa();
+    isa.wordLayout = structuredClone(fixedLayout);
+    change(isa.wordLayout);
+    expect(() => loadIsa(isa)).toThrow(message);
+});
+
+test("loadIsa rejects a wordLayout that is not an object", () => {
+    const isa = copyOfIsa();
+    isa.wordLayout = [];
+    expect(() => loadIsa(isa)).toThrow("'wordLayout' must be an object");
+});
+
+test("loadIsa rejects an operand using the reserved opcode column", () => {
+    const isa = copyOfIsa();
+    isa.wordLayout = structuredClone(fixedLayout);
+    isa.formats.J.operands[0].field = "opcode";
+    expect(() => loadIsa(isa)).toThrow("can't be 'opcode'");
+});
+
+test("loadIsa rejects a format that uses one column twice", () => {
+    const isa = copyOfIsa();
+    isa.wordLayout = structuredClone(fixedLayout);
+    isa.formats.R.operands[2].field = "rs1";
+    expect(() => loadIsa(isa)).toThrow("'formats.R.operands[2].field' must be unique within format 'R'");
+});
+
+test("variable mode does not check the operand fields", () => {
+    const isa = copyOfIsa();
+    isa.wordLayout = { mode: "variable" };
+    isa.formats.R.operands[2].field = "rs1";
+    expect(() => loadIsa(isa)).not.toThrow();
 });

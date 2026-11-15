@@ -7,12 +7,33 @@ export interface Format {
     }>
 }
 
+// how the numbers of one assembled instruction are laid out
+//  variable: [opcode, ...operands in the order they are written] (or opcode last)
+//  fixed:    one value per column, unused columns get unusedValue, so JMP 15 can become 12 0 0 15
+//  addressing 'instruction': the PC counts instructions, 'word': the PC counts every single number
+export interface WordLayout {
+    mode: "variable" | "fixed"
+    opcodePosition: "first" | "last"
+    columns: Array<string>
+    unusedValue: number
+    addressing: "instruction" | "word"
+}
+
+export const defaultWordLayout: WordLayout = {
+    mode: "variable",
+    opcodePosition: "first",
+    columns: [],
+    unusedValue: 0,
+    addressing: "instruction",
+};
+
 export interface Isa {
     name: string
     description: string
     registers: Array<string>
     firstProgramIndex: number
     jumpToOneBeforeAddress: boolean
+    wordLayout?: Partial<WordLayout>
     formats: Record<string, Format>
     instructions: Array<{
         mnemonic: string
@@ -82,6 +103,62 @@ export function loadIsa(data: unknown): Isa {
         }
     }
 
+    // check optional wordLayout (second level)
+    if (obj.wordLayout !== undefined) {
+        const layout = obj.wordLayout;
+        if (typeof layout !== "object" || layout === null || Array.isArray(layout))
+            throw new Error("'wordLayout' must be an object");
+        const l = layout as Record<string, unknown>;
+
+        const checkChoice = (key: string, choices: string[]) => {
+            if (l[key] !== undefined && !choices.includes(l[key] as string))
+                throw new Error(`'wordLayout.${key}' must be one of: ${choices.join(", ")} (got ${JSON.stringify(l[key])})`);
+        };
+        checkChoice("mode", ["variable", "fixed"]);
+        checkChoice("opcodePosition", ["first", "last"]);
+        checkChoice("addressing", ["instruction", "word"]);
+
+        if (l.unusedValue !== undefined && (typeof l.unusedValue !== "number" || !Number.isFinite(l.unusedValue)))
+            throw new Error("'wordLayout.unusedValue' must be a number");
+
+        if (l.columns !== undefined) {
+            if (!Array.isArray(l.columns))
+                throw new Error("'wordLayout.columns' must be a list");
+            const seen = new Set<string>();
+            for (const [i, column] of l.columns.entries()) {
+                if (typeof column !== "string" || column.trim() === "")
+                    throw new Error(`'wordLayout.columns[${i}]' must be a non-empty string`);
+                if (seen.has(column))
+                    throw new Error(`'wordLayout.columns[${i}]' must be unique ('${column}' is already a column)`);
+                seen.add(column);
+            }
+        }
+
+        if (l.mode === "fixed") {
+            if (!Array.isArray(l.columns))
+                throw new Error("'wordLayout.columns' is required when 'wordLayout.mode' is 'fixed'");
+            const columns = l.columns as string[];
+            const opcodeColumns = columns.filter(c => c === "opcode").length;
+            if (opcodeColumns !== 1)
+                throw new Error(`'wordLayout.columns' must contain 'opcode' exactly once (found ${opcodeColumns})`);
+
+            // every operand needs its own column, 'opcode' is reserved for the opcode
+            for (const [name, format] of Object.entries(obj.formats)) {
+                const used = new Set<string>();
+                for (const [i, operand] of format.operands.entries()) {
+                    const where = `formats.${name}.operands[${i}].field`;
+                    if (operand.field === "opcode")
+                        throw new Error(`'${where}' can't be 'opcode', that column is reserved for the opcode`);
+                    if (!columns.includes(operand.field))
+                        throw new Error(`'${where}' must be one of the 'wordLayout.columns': ${columns.join(", ")} (got '${operand.field}')`);
+                    if (used.has(operand.field))
+                        throw new Error(`'${where}' must be unique within format '${name}' ('${operand.field}' is used twice)`);
+                    used.add(operand.field);
+                }
+            }
+        }
+    }
+
     // check instructions (second level)
     const seenMnemonics = new Set<string>();
     const seenOpcodes = new Map<number, string>();
@@ -147,6 +224,30 @@ export function loadIsa(data: unknown): Isa {
 
     // return Isa object
     return data as Isa;
+}
+
+// built-in ISA for writing plain machine code without an ISA file: no mnemonics, so every line is numbers
+export const rawIsaData: Isa = {
+    name: "Raw machine code",
+    description: "No ISA, every line is numbers and labels",
+    registers: [],
+    firstProgramIndex: 0,
+    jumpToOneBeforeAddress: false,
+    formats: {},
+    instructions: [],
+    pseudoInstructions: [],
+};
+
+// the layout with every missing setting filled in with its default
+export function resolveWordLayout(isa: Isa): WordLayout {
+    const layout = isa.wordLayout ?? {};
+    return {
+        mode: layout.mode ?? defaultWordLayout.mode,
+        opcodePosition: layout.opcodePosition ?? defaultWordLayout.opcodePosition,
+        columns: [...(layout.columns ?? defaultWordLayout.columns)],
+        unusedValue: layout.unusedValue ?? defaultWordLayout.unusedValue,
+        addressing: layout.addressing ?? defaultWordLayout.addressing,
+    };
 }
 
 // maps each mnemonic (upper case) to its instruction definition, for fast lookup
