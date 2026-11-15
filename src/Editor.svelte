@@ -1,7 +1,7 @@
 <script lang="ts">
     import { onMount } from "svelte";
     import { EditorView, basicSetup } from "codemirror";
-    import { keymap } from "@codemirror/view";
+    import { keymap, placeholder } from "@codemirror/view";
     import { indentWithTab } from "@codemirror/commands";
     import { Compartment, StateEffect } from "@codemirror/state";
     import { makeAsmLanguage, asmHighlighting } from "./asmLanguage";
@@ -17,6 +17,7 @@
         registers,
         labels,
         setup,
+        oncursor,
     }: {
         value: string;
         onchange: (text: string) => void;
@@ -25,6 +26,7 @@
         registers: Set<string>;
         labels: Set<string>;
         setup: IsaSetup;
+        oncursor?: (line: number, col: number) => void;
     } = $props();
 
     let container: HTMLDivElement;
@@ -70,6 +72,15 @@
         view?.dispatch({ effects: isaChanged.of(null) });
     });
 
+    $effect(() => {
+        const text = value;
+        if (view && text !== view.state.doc.toString()) {
+            view.dispatch({
+                changes: { from: 0, to: view.state.doc.length, insert: text },
+            });
+        }
+    });
+
     const theme = EditorView.theme(
         {
             "&": {
@@ -90,6 +101,9 @@
             },
             ".cm-cursor": {
                 borderLeftColor: "var(--accent)",
+            },
+            ".cm-placeholder": {
+                color: "var(--muted)",
             },
             ".cm-gutters": {
                 backgroundColor: "var(--bars)",
@@ -132,10 +146,16 @@
                     if (update.docChanged) {
                         onchange(update.state.doc.toString());
                     }
+                    if (update.docChanged || update.selectionSet) {
+                        const head = update.state.selection.main.head;
+                        const line = update.state.doc.lineAt(head);
+                        oncursor?.(line.number, head - line.from + 1);
+                    }
                 }),
                 languageSlot.of(makeAsmLanguage(mnemonics, registers, labels)),
                 asmHighlighting,
                 asmLinter,
+                placeholder("Write assembly here, Ctrl+Enter to assemble"),
             ],
         });
 

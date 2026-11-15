@@ -6,19 +6,16 @@
     let { isa, onapply }: { isa: Isa; onapply: (data: unknown) => void } =
         $props();
 
-    // The editor works on its own editable copy ("draft"). Users never see
-    // "formats": every instruction lists its own operands, and toIsa() generates
-    // the formats (identical operand lists share one format) when applying/saving.
     type OperandRow = { field: string; type: string };
     type InstructionRow = {
         mnemonic: string;
         opcode: number | null;
         operands: OperandRow[];
-        preferredFormat: string; // original format name, reused when possible
+        preferredFormat: string; 
         hasRange: boolean;
         min: number | null;
         max: number | null;
-        open: boolean; // UI only: row expanded?
+        open: boolean;
     };
     type PseudoRow = {
         mnemonic: string;
@@ -75,7 +72,6 @@
             .filter((s) => s !== "");
     }
 
-    // ---------- registers (chips) ----------
     function addRegisters(text: string) {
         for (const r of splitList(text, /[,\s]+/)) {
             if (!draft.registers.includes(r)) draft.registers.push(r);
@@ -91,10 +87,8 @@
         }
     }
 
-    // ---------- draft -> ISA json ----------
     const typeLetter: Record<string, string> = { register: "R", immediate: "I", label: "L" };
 
-    // operands without a name get one from their type, e.g. "register2"
     function operandName(operands: OperandRow[], i: number) {
         const own = operands[i].field.trim();
         if (own) return own;
@@ -108,7 +102,6 @@
         const formats: Record<string, { operands: OperandRow[] }> = {};
         const bySignature = new Map<string, string>();
 
-        // finds or creates the format for an instruction's operand list
         function formatFor(ins: InstructionRow): string {
             const operands = ins.operands.map((o, i) => ({
                 field: operandName(ins.operands, i),
@@ -151,14 +144,11 @@
         };
     }
 
-    // errors from loadIsa look like "'instructions[3].opcode' must ..."
-    // -> find the row so it can be highlighted and opened
     let errorRow = $derived.by(() => {
         const m = error.match(/^'(instructions|pseudoInstructions)\[(\d+)\]/);
         return m ? { kind: m[1], index: Number(m[2]) } : null;
     });
 
-    // returns the validated ISA, or null (and shows the error)
     async function validate(): Promise<unknown | null> {
         error = "";
         try {
@@ -450,7 +440,6 @@
         font-size: 12px;
     }
 
-    /* instruction / pseudo-instruction rows */
     .item {
         margin: 4px 0;
         border: 1px solid var(--line);
@@ -523,7 +512,6 @@
         font-size: 13px;
     }
 
-    /* register chips */
     .chips {
         display: flex;
         flex-wrap: wrap;
@@ -567,7 +555,6 @@
         outline: none;
     }
 
-    /* buttons */
     button.ghost {
         background: transparent;
         color: var(--text);
@@ -593,10 +580,9 @@
         justify-self: start;
     }
 
-    /* Apply / Download stay visible while scrolling */
     .actionbar {
         position: sticky;
-        bottom: -10px; /* cancels the panel's padding so the bar touches the edge */
+        bottom: -10px;
         margin: 0 -10px -10px;
         padding: 8px 10px 10px;
         background: var(--panel);

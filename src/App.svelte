@@ -6,7 +6,37 @@
     import { findLabels } from "./asmLanguage";
     import { AsmError } from "./core/asmError";
     import { assembleSource } from "./core/assembleSource";
-    let setup: IsaSetup = $state.raw(setUpIsa(isaData));
+
+    const SOURCE_KEY = "tmcode.source";
+    const ISA_KEY = "tmcode.isa";
+
+    function loadSavedSetup(): IsaSetup {
+        try {
+            const saved = localStorage.getItem(ISA_KEY);
+            if (saved) return setUpIsa(JSON.parse(saved));
+        } catch {
+            
+        }
+        return setUpIsa(isaData);
+    }
+
+    function saveIsa(current: IsaSetup) {
+        try {
+            localStorage.setItem(ISA_KEY, JSON.stringify(current.isa));
+        } catch {
+            
+        }
+    }
+
+    function loadSavedSource(): string {
+        try {
+            return localStorage.getItem(SOURCE_KEY) ?? "";
+        } catch {
+            return "";
+        }
+    }
+
+    let setup: IsaSetup = $state.raw(loadSavedSetup());
     let output: number[][] = $state([]);
 
     let errors: AsmError[] = $state([]);
@@ -30,7 +60,18 @@
         new Set(setup.isa.registers.map((r) => r.toUpperCase())),
     );
 
-    let source = $state("");
+    let source = $state(loadSavedSource());
+
+    $effect(() => {
+        try {
+            localStorage.setItem(SOURCE_KEY, source);
+        } catch {
+            
+        }
+    });
+
+    let liveErrors = $derived(assembleSource(source, setup).errors);
+    let cursor = $state({ line: 1, col: 1 });
 
     let labelSet = $derived(findLabels(source));
 
@@ -55,6 +96,7 @@
         try {
             const text = await file.text();
             setup = setUpIsa(JSON.parse(text));
+            saveIsa(setup);
             output = [];
             errors = [];
         } catch (e) {
@@ -68,9 +110,34 @@
 
     function applyIsa(data: unknown) {
         setup = setUpIsa(data);
+        saveIsa(setup);
         output = [];
         errors = [];
         editing = false;
+    }
+
+    let sourceInput: HTMLInputElement;
+
+    async function openSource(
+        event: Event & { currentTarget: HTMLInputElement },
+    ) {
+        const input = event.currentTarget;
+        const file = input.files?.[0];
+        if (!file) return;
+        source = await file.text();
+        output = [];
+        errors = [];
+        input.value = "";
+    }
+
+    function saveSource() {
+        const blob = new Blob([source], { type: "text/plain" });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = "program.asm";
+        link.click();
+        URL.revokeObjectURL(url);
     }
 
     function outputToText() {
@@ -108,6 +175,21 @@
         />
         <button class="secondary-button" onclick={() => fileInput.click()}>
             Import ISA
+        </button>
+
+        <input
+            type="file"
+            accept=".asm,.s,.txt"
+            aria-label="Open assembly file"
+            hidden
+            bind:this={sourceInput}
+            onchange={openSource}
+        />
+        <button class="secondary-button" onclick={() => sourceInput.click()}>
+            Open .asm
+        </button>
+        <button class="secondary-button" onclick={saveSource}>
+            Save .asm
         </button>
 
         <p class="isa-label">{setup.isa.name}</p>
@@ -225,6 +307,7 @@
             value={source}
             onchange={(text) => (source = text)}
             onrun={assembleButton}
+            oncursor={(line, col) => (cursor = { line, col })}
             mnemonics={mnemonicSet}
             registers={registerSet}
             labels={labelSet}
@@ -309,6 +392,12 @@
                 {output.length} instruction{output.length > 1 ? "s" : ""} assembled
             </p>
         {/if}
+
+        <p class="status-right" class:has-errors={liveErrors.length > 0}>
+            {liveErrors.length
+                ? `${liveErrors.length} error${liveErrors.length > 1 ? "s" : ""}`
+                : "No errors"} · Ln {cursor.line}, Col {cursor.col}
+        </p>
     </footer>
 </div>
 
@@ -466,6 +555,16 @@
         overflow: hidden;
         text-overflow: ellipsis;
         min-width: 0;
+    }
+    .status-right {
+        margin-left: auto;
+        flex: none;
+        white-space: nowrap;
+        color: var(--muted);
+        font-size: 16px;
+    }
+    .status-right.has-errors {
+        color: var(--error);
     }
     .status-bar-message {
         color: var(--muted);

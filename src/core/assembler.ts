@@ -3,7 +3,7 @@ import type { InstructionDef, Isa, IsaSetup } from "./isa";
 import { AsmError, AsmErrors } from "./asmError";
 
 function assembleMnemonic(instruction: ParsedInstruction, isa: Isa, labels: Map<string, number>, def: InstructionDef) {
-    const { mnemonic, opcode, format, immRange } = def;
+    const { opcode, format, immRange } = def;
     const formatOperands = isa.formats[format].operands;
     const registers = isa.registers.map((r) => r.toUpperCase());
 
@@ -84,7 +84,7 @@ export function assemble(instructions: ParsedInstruction[], labels: Map<string, 
 
     const finalCode: number[][] = []
 
-    for (const [i, instruction] of instructions.entries()) {
+    for (const instruction of instructions) {
         const def = mnemonicMap.get(instruction.mnemonic);
         try {
             if (def !== undefined) {
